@@ -4,46 +4,155 @@
 <meta charset="UTF-8">
 <title>PlanSpec — One-Pager</title>
 <style>
-  @page { size: letter; margin: 0; }
+  @page {
+    size: letter;
+    margin: 0.6in 0.5in 0.75in 0.5in;
+    @bottom-center {
+      content: "PlanSpec v1.2.0 · Dazlarus Industries · MIT License · github.com/Dazlarus-Industries/planspec";
+      font-family: 'Segoe UI', sans-serif;
+      font-size: 8pt;
+      color: #94a3b8;
+    }
+  }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Helvetica, sans-serif; font-size: 11pt; line-height: 1.65; color: #1e293b; background: #ffffff; }
 
-  .header { background: linear-gradient(135deg, #0a0e14 0%, #0d1117 50%, #161b22 100%); color: #e6edf3; padding: 36px 50px 28px; position: relative; }
-  .header::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #58a6ff, #bc8cff, #58a6ff); }
-  .header-brand { font-size: 11pt; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #58a6ff; margin-bottom: 10px; }
-  .header h1 { font-size: 28pt; font-weight: 700; color: #ffffff; margin-bottom: 6px; }
-  .header-subtitle { font-size: 13pt; color: #8b949e; font-weight: 400; }
+  html, body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Helvetica, sans-serif;
+    font-size: 11pt;
+    line-height: 1.65;
+    color: #1e293b;
+    background: #ffffff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 
-  .body { padding: 28px 50px 36px; }
-  .body h2 { font-size: 13pt; font-weight: 700; color: #0d1117; margin-top: 20px; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid #58a6ff; }
+  /* ── Header card (inside page margins) ── */
+  .header {
+    background: linear-gradient(135deg, #0a0e14 0%, #0d1117 50%, #161b22 100%);
+    color: #e6edf3;
+    padding: 32px 40px 24px;
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #58a6ff, #bc8cff, #58a6ff);
+  }
+
+  .header-brand {
+    font-size: 11pt;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #58a6ff;
+    margin-bottom: 10px;
+  }
+
+  .header h1 {
+    font-size: 28pt;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 6px;
+  }
+
+  .header-subtitle {
+    font-size: 13pt;
+    color: #8b949e;
+    font-weight: 400;
+  }
+
+  /* ── Body ── */
+  .body {
+    padding: 8px 0 20px;
+  }
+
+  .body h2 {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #0d1117;
+    margin-top: 18px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #58a6ff;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
   .body h2:first-of-type { margin-top: 0; }
+
+  .body h2 + p,
+  .body h2 + ul {
+    break-before: avoid;
+    page-break-before: avoid;
+  }
+
   .body p { margin-bottom: 10px; color: #334155; }
-  .body ul { margin: 6px 0 12px 18px; }
+
+  .body ul {
+    margin: 6px 0 12px 18px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   .body li { margin-bottom: 4px; color: #334155; }
   .body strong { color: #0d1117; }
 
-  .fact-box { background: #f1f5f9; border-radius: 8px; padding: 14px 20px; margin: 14px 0; }
+  /* ── Fact box — keep together ── */
+  .fact-box {
+    background: #f1f5f9;
+    border-radius: 8px;
+    padding: 14px 20px;
+    margin: 14px 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   .fact-box table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
   .fact-box td { padding: 4px 0; vertical-align: top; }
   .fact-label { font-weight: 600; color: #475569; width: 100px; padding-right: 16px !important; }
   .fact-value { color: #0d1117; }
   .fact-value a { color: #58a6ff; text-decoration: none; }
 
-  .cta { background: #f0f7ff; border-left: 4px solid #58a6ff; padding: 14px 20px; margin: 14px 0; border-radius: 0 8px 8px 0; }
+  /* ── CTA — keep together ── */
+  .cta {
+    background: #f0f7ff;
+    border-left: 4px solid #58a6ff;
+    padding: 14px 20px;
+    margin: 14px 0;
+    border-radius: 0 8px 8px 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   .cta ul { margin: 4px 0 0 18px; }
 
-  .footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-size: 9pt; color: #94a3b8; text-align: center; }
-  .footer a { color: #58a6ff; text-decoration: none; }
-  code { font-family: 'Cascadia Code', 'Consolas', monospace; background: #f1f5f9; padding: 2px 5px; border-radius: 4px; font-size: 10pt; color: #0d1117; }
+  code {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    background: #f1f5f9;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 10pt;
+    color: #0d1117;
+  }
 </style>
 </head>
 <body>
+
 <div class="header">
   <div class="header-brand">Dazlarus Industries</div>
   <h1>PlanSpec</h1>
   <div class="header-subtitle">An open standard for structured AI execution plans.</div>
 </div>
+
 <div class="body">
+
 <h2>What</h2>
 <p>An <strong>open standard (MIT)</strong> for structured AI execution plans. When an AI agent needs to do real work — write code, modify infrastructure, operate systems — PlanSpec defines the format for the plan that gets reviewed, approved, and executed.</p>
 
@@ -90,10 +199,7 @@
   </ul>
 </div>
 
-<div class="footer">
-  <p>PlanSpec is an open standard developed by <strong>Dazlarus Industries</strong>.<br>
-  <a href="https://github.com/Dazlarus-Industries/planspec">github.com/Dazlarus-Industries/planspec</a> · <a href="https://dazlarus.dev">dazlarus.dev</a></p>
 </div>
-</div>
+
 </body>
 </html>
