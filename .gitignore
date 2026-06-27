@@ -1,0 +1,16 @@
+# Internal documents — not published to public repo
+PUBLISH_RECOMMENDATION.md
+SCHEMA_REVIEW.md
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+
+# Temporary work files
+*.tmp
+*.bak
+work/

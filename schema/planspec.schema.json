@@ -1,0 +1,425 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://planspec.dev/schema/v1.0.0",
+  "title": "PlanSpec",
+  "description": "Structured execution plan document — the primary output of an AI planning engine. See https://planspec.dev for the full specification.",
+  "type": "object",
+  "required": [
+    "identity",
+    "intent",
+    "scope",
+    "approach",
+    "constraints",
+    "success_criteria",
+    "risks",
+    "metadata"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "identity": {
+      "$ref": "#/definitions/Identity"
+    },
+    "intent": {
+      "$ref": "#/definitions/Intent"
+    },
+    "scope": {
+      "$ref": "#/definitions/Scope"
+    },
+    "approach": {
+      "$ref": "#/definitions/Approach"
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Constraint" }
+    },
+    "success_criteria": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/SuccessCriterion" },
+      "minItems": 1
+    },
+    "risks": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Risk" }
+    },
+    "delegation": {
+      "$ref": "#/definitions/Delegation"
+    },
+    "approval": {
+      "$ref": "#/definitions/Approval"
+    },
+    "revision_history": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/RevisionEntry" }
+    },
+    "metadata": {
+      "$ref": "#/definitions/Metadata"
+    }
+  },
+  "definitions": {
+    "Identity": {
+      "type": "object",
+      "required": ["plan_id", "session_id", "revision", "created_at", "lifecycle_state"],
+      "additionalProperties": false,
+      "properties": {
+        "plan_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Globally unique plan identifier."
+        },
+        "session_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The planning session that produced this plan."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Sequential revision number."
+        },
+        "change_type": {
+          "type": "string",
+          "enum": ["major", "minor", "patch"],
+          "description": "Semantic class of this revision."
+        },
+        "parent_id": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "description": "Plan ID of the previous revision. Null for initial."
+        },
+        "workspace_id": {
+          "type": ["string", "null"],
+          "description": "Workspace this plan belongs to."
+        },
+        "created_by": {
+          "type": "string",
+          "description": "User or agent identifier that authored this revision."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp."
+        },
+        "lifecycle_state": {
+          "type": "string",
+          "enum": ["DRAFT", "IN_REVIEW", "APPROVED", "EXECUTING", "COMPLETED", "REJECTED", "CANCELLED"],
+          "description": "Current lifecycle state of this plan."
+        }
+      }
+    },
+    "Intent": {
+      "type": "object",
+      "required": ["goal_statement"],
+      "additionalProperties": false,
+      "properties": {
+        "goal_statement": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Plain-language description of the primary goal."
+        },
+        "motivation": {
+          "type": "string",
+          "description": "Why this goal matters in context."
+        },
+        "success_definition": {
+          "type": "string",
+          "description": "One-sentence definition of what success looks like."
+        },
+        "scope_context": {
+          "type": "string",
+          "description": "Brief description of the system/codebase context."
+        }
+      }
+    },
+    "Scope": {
+      "type": "object",
+      "required": ["in_scope"],
+      "additionalProperties": false,
+      "properties": {
+        "in_scope": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Explicitly included areas, components, or concerns."
+        },
+        "out_of_scope": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Explicitly excluded areas with brief rationale."
+        },
+        "assumptions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Assumptions that must hold for the plan to be valid."
+        },
+        "open_questions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Unresolved questions. Empty means ready for execution."
+        }
+      }
+    },
+    "Approach": {
+      "type": "object",
+      "required": ["steps"],
+      "additionalProperties": false,
+      "properties": {
+        "overview": {
+          "type": "string",
+          "description": "Brief narrative of the overall approach."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why this approach was chosen."
+        },
+        "alternatives_considered": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["approach", "rejection_reason"],
+            "properties": {
+              "approach": { "type": "string" },
+              "rejection_reason": { "type": "string" }
+            }
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Step" },
+          "minItems": 1,
+          "description": "Ordered execution steps."
+        }
+      }
+    },
+    "Step": {
+      "type": "object",
+      "required": ["step_id", "title", "description", "dependencies"],
+      "additionalProperties": false,
+      "properties": {
+        "step_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique step identifier."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Short action-oriented title."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Detailed description of what needs to be done."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why this step is needed."
+        },
+        "inputs": {
+          "type": "string",
+          "description": "What this step requires to proceed."
+        },
+        "outputs": {
+          "type": "string",
+          "description": "What this step produces."
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Step IDs that must complete before this step."
+        },
+        "dependency_rationale": {
+          "type": "string",
+          "description": "Why these dependencies exist."
+        },
+        "parallelizable": {
+          "type": "boolean",
+          "description": "Can this step run in parallel with others?"
+        },
+        "estimated_complexity": {
+          "type": "string",
+          "enum": ["xs", "s", "m", "l", "xl"],
+          "description": "Estimated implementation complexity."
+        },
+        "delegation": {
+          "type": "string",
+          "enum": ["human_approval", "agent_autonomous", "either"],
+          "description": "Who can execute this step."
+        },
+        "acceptance_criteria": {
+          "type": "string",
+          "description": "How to know this specific step is done."
+        },
+        "intended_outcome": {
+          "type": "string",
+          "description": "Expected result of completing this step."
+        }
+      }
+    },
+    "Constraint": {
+      "type": "object",
+      "required": ["constraint_id", "type", "description"],
+      "properties": {
+        "constraint_id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["technical", "process", "security", "compliance", "performance"]
+        },
+        "description": { "type": "string" },
+        "validation_method": { "type": "string" },
+        "blocking": { "type": "boolean" }
+      }
+    },
+    "SuccessCriterion": {
+      "type": "object",
+      "required": ["criterion_id", "description", "verification"],
+      "properties": {
+        "criterion_id": { "type": "string" },
+        "description": { "type": "string" },
+        "verification": {
+          "type": "string",
+          "enum": ["manual", "automated", "observable"]
+        },
+        "weight": {
+          "type": "string",
+          "enum": ["primary", "secondary"]
+        }
+      }
+    },
+    "Risk": {
+      "type": "object",
+      "required": ["risk_id", "title", "probability", "impact", "description"],
+      "properties": {
+        "risk_id": { "type": "string" },
+        "title": { "type": "string" },
+        "probability": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "impact": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "description": { "type": "string" },
+        "mitigation": { "type": "string" },
+        "contingency": { "type": "string" },
+        "owner": {
+          "type": "string",
+          "enum": ["human", "agent", "shared"]
+        }
+      }
+    },
+    "Delegation": {
+      "type": "object",
+      "description": "v1 extension point. Not validated or enforced in v1.",
+      "properties": {
+        "default_mode": {
+          "type": "string",
+          "enum": ["human_approval", "agent_autonomous", "hybrid"]
+        },
+        "step_overrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step_id": { "type": "string" },
+              "mode": {
+                "type": "string",
+                "enum": ["human_approval", "agent_autonomous"]
+              },
+              "rationale": { "type": "string" }
+            }
+          }
+        },
+        "escalation_policy": {
+          "type": "object",
+          "properties": {
+            "on_ambiguity": {
+              "type": "string",
+              "enum": ["pause", "fail", "proceed_with_best_guess"]
+            },
+            "on_constraint_violation": {
+              "type": "string",
+              "enum": ["pause", "fail", "notify"]
+            },
+            "on_unexpected_scope": {
+              "type": "string",
+              "enum": ["pause", "fail", "notify"]
+            }
+          }
+        }
+      }
+    },
+    "Approval": {
+      "type": "object",
+      "description": "Approval record for the current revision.",
+      "properties": {
+        "approved_by": {
+          "type": ["string", "null"],
+          "description": "Human or agent identifier. Null if not yet approved."
+        },
+        "approved_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "approval_method": {
+          "oneOf": [
+            { "type": "string", "enum": ["explicit", "implicit_timeout"] },
+            { "type": "null" }
+          ],
+          "description": "How approval was granted."
+        },
+        "review_findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "reviewer": { "type": "string" },
+              "findings": { "type": "string" },
+              "severity": {
+                "type": "string",
+                "enum": ["info", "warning", "blocking"]
+              },
+              "disposition": {
+                "type": "string",
+                "enum": ["accepted", "rejected", "deferred"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "RevisionEntry": {
+      "type": "object",
+      "required": ["revision", "change_type", "author", "timestamp", "summary"],
+      "properties": {
+        "revision": { "type": "integer", "minimum": 1 },
+        "change_type": {
+          "type": "string",
+          "enum": ["major", "minor", "patch"]
+        },
+        "author": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "summary": { "type": "string" }
+      }
+    },
+    "Metadata": {
+      "type": "object",
+      "required": ["schema_version"],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "PlanSpec schema version this document conforms to."
+        },
+        "generator": {
+          "type": "string",
+          "description": "System that produced this plan."
+        },
+        "source_session_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,256 @@
+{
+  "identity": {
+    "plan_id": "a1b2c3d4-e5f6-4a5b-8c7d-9e0f1a2b3c4d",
+    "session_id": "f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b",
+    "revision": 1,
+    "change_type": "major",
+    "parent_id": null,
+    "workspace_id": null,
+    "created_by": "planclave",
+    "created_at": "2026-06-27T05:15:00Z",
+    "lifecycle_state": "IN_REVIEW"
+  },
+  "intent": {
+    "goal_statement": "Add batch segment calibration to the narrator-tts worker so the optimal GPU batch size is determined empirically rather than through theoretical VRAM estimates.",
+    "motivation": "The current VRAM-based batch size estimate is too conservative on consumer GPUs, returning batch_size=1 when 6 segments would fit. Empirical calibration finds the true maximum.",
+    "success_definition": "Workers automatically determine and cache the optimal batch size per model+GPU combination without manual configuration.",
+    "scope_context": "narrator-tts CLI application, Rust codebase, tch backend with CUDA support"
+  },
+  "scope": {
+    "in_scope": [
+      "narrator-tts/src/bin/worker.rs",
+      "narrator-tts/src/orchestrator.rs",
+      "narrator-tts/src/worker_pool.rs",
+      "src/backends/tch_tts.rs",
+      "src/config.rs"
+    ],
+    "out_of_scope": [
+      "src/pipeline/ (no changes to qbench pipeline)",
+      "vendor/qwen_tts/ (no model changes)",
+      "narrator-gui/ (no UI changes)"
+    ],
+    "assumptions": [
+      "The tch backend exposes query_cuda_memory() returning (free_bytes, total_bytes) on Windows",
+      "The qbench pipeline already accepts multiple --texts arguments via Vec<String>",
+      "GPU OOM produces a detectable exit code or stderr pattern from the TTS backend"
+    ],
+    "open_questions": []
+  },
+  "approach": {
+    "overview": "Add a calibration probe phase at worker startup that measures actual VRAM per segment via binary search, caches the result per model+GPU, and uses the calibrated batch size for all subsequent dispatch.",
+    "rationale": "Empirical measurement is more accurate than theoretical VRAM estimates. Binary search converges in log2(N) probes. Caching avoids repeated calibration.",
+    "alternatives_considered": [
+      {
+        "approach": "Manual --chunk-batch-size flag only",
+        "rejection_reason": "Requires user experimentation to find the right value; different for every GPU+model combination."
+      },
+      {
+        "approach": "Fix the theoretical VRAM estimate formula",
+        "rejection_reason": "The formula would need to account for CUDA fragmentation, driver overhead, and model-specific memory patterns. Empirical measurement is simpler and more robust."
+      }
+    ],
+    "steps": [
+      {
+        "step_id": "add-calibration-module",
+        "title": "Create batch calibration module",
+        "description": "Implement a BatchCalibrator struct in src/backends/tch_tts.rs that probes the GPU with synthetic segments to find the maximum stable batch size. Uses binary search between batch_size=1 and the conservative estimate from recommended_max_batch_size() * 8.",
+        "rationale": "Isolating calibration logic in a dedicated module keeps the worker and backend clean.",
+        "inputs": "Loaded model, GPU device ID",
+        "outputs": "Calibrated batch size (usize)",
+        "dependencies": [],
+        "parallelizable": false,
+        "estimated_complexity": "m",
+        "delegation": "agent_autonomous",
+        "acceptance_criteria": "Calibrator returns a usize >= 1. Binary search terminates within log2(max_probe) iterations."
+      },
+      {
+        "step_id": "add-batch-cache",
+        "title": "Implement batch size cache",
+        "description": "Create a JSON cache file at ~/.narrator/batch_cache.json keyed by model path hash + GPU device ID + available VRAM. Check cache before calibration; skip if hit. Add --recalibrate CLI flag to force re-probe.",
+        "rationale": "Avoids running calibration on every TTS session. Cache invalidates naturally on model or GPU changes.",
+        "inputs": "Calibrated batch size, model path, GPU device info",
+        "outputs": "Cache file on disk",
+        "dependencies": ["add-calibration-module"],
+        "parallelizable": false,
+        "estimated_complexity": "s",
+        "delegation": "agent_autonomous",
+        "acceptance_criteria": "Cache read returns correct batch size on second run without probe. --recalibrate forces re-probe."
+      },
+      {
+        "step_id": "extend-workassignment",
+        "title": "Extend WorkAssignment for multi-segment batches",
+        "description": "Add a segments: Vec<String> field to WorkAssignment alongside the existing single text field. Use serde default for backward compatibility with legacy IPC messages.",
+        "rationale": "The IPC protocol must carry multiple segments per assignment.",
+        "inputs": "Existing WorkAssignment struct",
+        "outputs": "Updated struct with Vec<String> field",
+        "dependencies": [],
+        "parallelizable": true,
+        "estimated_complexity": "s",
+        "delegation": "agent_autonomous",
+        "acceptance_criteria": "Old single-segment IPC messages deserialize correctly. New messages with segments field work."
+      },
+      {
+        "step_id": "orchestrator-batch-dispatch",
+        "title": "Implement batch grouping in orchestrator",
+        "description": "Modify the orchestrator dispatch loop to collect up to N pending segments and package them into a single batched WorkAssignment. N comes from the calibrated batch size.",
+        "rationale": "This is the core throughput improvement — batching segments before sending to the worker.",
+        "inputs": "Segment queue, calibrated batch size",
+        "outputs": "Batched WorkAssignments sent to worker pool",
+        "dependencies": ["add-batch-cache", "extend-workassignment"],
+        "parallelizable": false,
+        "estimated_complexity": "m",
+        "delegation": "agent_autonomous",
+        "acceptance_criteria": "With batch_size=1, behavior is identical to current. With batch_size>1, multiple segments sent per assignment."
+      },
+      {
+        "step_id": "worker-multi-text",
+        "title": "Update worker to pass multiple --texts",
+        "description": "Modify run_chunk_threaded() to detect multi-segment WorkAssignment and pass each segment as a separate --texts argument to qbench.",
+        "rationale": "qbench already accepts multiple texts; the worker just needs to construct the right CLI invocation.",
+        "inputs": "Multi-segment WorkAssignment",
+        "outputs": "Multiple WAV files in segment order",
+        "dependencies": ["extend-workassignment"],
+        "parallelizable": true,
+        "estimated_complexity": "s",
+        "delegation": "agent_autonomous",
+        "acceptance_criteria": "Worker invokes qbench once with all --texts. WAV files returned in correct order."
+      },
+      {
+        "step_id": "oom-fallback",
+        "title": "Implement OOM fallback retry",
+        "description": "When a batch fails with OOM, retry with half the batch size. Continue halving until success or batch_size=1.",
+        "rationale": "Runtime VRAM conditions may differ from calibration time. Fallback prevents hard failures.",
+        "inputs": "OOM error from worker",
+        "outputs": "Successful batch at reduced size",
+        "dependencies": ["worker-multi-text", "orchestrator-batch-dispatch"],
+        "parallelizable": false,
+        "estimated_complexity": "m",
+        "delegation": "agent_autonomous",
+        "acceptance_criteria": "Batch of size N that OOMs retries at N/2, N/4, etc. Successful size reported to orchestrator."
+      },
+      {
+        "step_id": "tests-and-compat",
+        "title": "Add batch tests and verify backward compatibility",
+        "description": "Run existing test suite. Add unit tests for: calibration module, cache read/write, batch grouping, multi-segment serialization, OOM fallback. Verify default behavior unchanged.",
+        "rationale": "No regressions and new code paths covered.",
+        "inputs": "All implementation steps complete",
+        "outputs": "Passing test suite",
+        "dependencies": ["oom-fallback"],
+        "parallelizable": false,
+        "estimated_complexity": "m",
+        "delegation": "agent_autonomous",
+        "acceptance_criteria": "All existing tests pass. New tests cover batch calibration, cache, grouping, fallback."
+      }
+    ]
+  },
+  "constraints": [
+    {
+      "constraint_id": "c001",
+      "type": "technical",
+      "description": "Calibration must not corrupt the loaded model state. Probes must be non-destructive.",
+      "validation_method": "Model generates correctly after calibration phase completes.",
+      "blocking": true
+    },
+    {
+      "constraint_id": "c002",
+      "type": "performance",
+      "description": "Calibration overhead must be under 30 seconds for any GPU.",
+      "validation_method": "Time calibration probes on 12.3 GB GPU target.",
+      "blocking": false
+    }
+  ],
+  "success_criteria": [
+    {
+      "criterion_id": "sc001",
+      "description": "--chunk-batch-size defaults to auto with numeric override available",
+      "verification": "automated",
+      "weight": "primary"
+    },
+    {
+      "criterion_id": "sc002",
+      "description": "Calibration finds max stable batch size within log2(probe_range) iterations",
+      "verification": "automated",
+      "weight": "primary"
+    },
+    {
+      "criterion_id": "sc003",
+      "description": "Batch size cached per model+GPU combo, skip calibration on cache hit",
+      "verification": "automated",
+      "weight": "primary"
+    },
+    {
+      "criterion_id": "sc004",
+      "description": "OOM triggers automatic fallback to smaller batch",
+      "verification": "automated",
+      "weight": "primary"
+    },
+    {
+      "criterion_id": "sc005",
+      "description": "All existing tests pass",
+      "verification": "automated",
+      "weight": "secondary"
+    }
+  ],
+  "risks": [
+    {
+      "risk_id": "r001",
+      "title": "Calibration segments produce poor audio that pollutes the output",
+      "probability": "low",
+      "impact": "medium",
+      "description": "Synthetic probe segments could generate audible artifacts if not discarded.",
+      "mitigation": "Calibration output is discarded. Probes use minimal synthetic text.",
+      "contingency": "Isolate calibration in a temp directory; delete all artifacts on completion.",
+      "owner": "agent"
+    },
+    {
+      "risk_id": "r002",
+      "title": "OOM detection is unreliable across CUDA/tch versions",
+      "probability": "medium",
+      "impact": "medium",
+      "description": "Different CUDA versions may report OOM differently, causing fallback to miss or false-trigger.",
+      "mitigation": "Check both exit code and stderr patterns. Default to batch_size=1 if OOM detection is ambiguous.",
+      "contingency": "Log OOM detection events for post-run analysis. Manual --chunk-batch-size override as escape hatch.",
+      "owner": "agent"
+    }
+  ],
+  "delegation": {
+    "default_mode": "human_approval",
+    "step_overrides": [
+      {
+        "step_id": "add-calibration-module",
+        "mode": "agent_autonomous",
+        "rationale": "Pure implementation, no design decisions needed."
+      },
+      {
+        "step_id": "tests-and-compat",
+        "mode": "agent_autonomous",
+        "rationale": "Running tests is fully automatable."
+      }
+    ],
+    "escalation_policy": {
+      "on_ambiguity": "pause",
+      "on_constraint_violation": "pause",
+      "on_unexpected_scope": "pause"
+    }
+  },
+  "approval": {
+    "approved_by": null,
+    "approved_at": null,
+    "approval_method": null,
+    "review_findings": []
+  },
+  "revision_history": [
+    {
+      "revision": 1,
+      "change_type": "major",
+      "author": "planclave",
+      "timestamp": "2026-06-27T05:15:00Z",
+      "summary": "Initial plan: batch calibration with binary search, cache, multi-segment dispatch, OOM fallback."
+    }
+  ],
+  "metadata": {
+    "schema_version": "1.0.0",
+    "generator": "planclave",
+    "source_session_id": "f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b"
+  }
+}

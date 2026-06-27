@@ -1,0 +1,393 @@
+{
+  "$comment": "Example 3: Full complexity — migrate a monolith API to serverless with zero downtime",
+  "identity": {
+    "plan_id": "7c9e6650-7b3a-4f2d-b89c-38171e0d6a2b",
+    "session_id": "sess-migration-012",
+    "revision": 3,
+    "parent_id": "6b8f5540-6a2b-4e1c-a78b-27060f0c5b1a",
+    "workspace_id": "api-migration",
+    "created_by": "agent:planclave",
+    "created_at": "2026-06-26T14:00:00Z"
+  },
+  "intent": {
+    "goal_statement": "Migrate the monolithic REST API from EC2 to AWS Lambda + API Gateway with zero downtime",
+    "motivation": "Current EC2 deployment has scaling issues during traffic spikes and high idle costs outside peak hours. Serverless will reduce costs by ~60% and auto-scale.",
+    "success_definition": "100% of API traffic is served by Lambda functions through API Gateway with no client-visible downtime and p95 latency within 200ms of current baseline",
+    "scope_context": "Express.js monolith deployed on EC2 behind ALB, using PostgreSQL (RDS) and Redis (ElastiCache). 47 API endpoints across 8 domains."
+  },
+  "scope": {
+    "in_scope": [
+      "Extracting 47 endpoints from Express monolith into Lambda functions",
+      "Setting up API Gateway with Lambda proxy integration",
+      "Blue-green traffic shifting via weighted target groups",
+      "Database connection pooling adaptation (RDS Proxy)",
+      "Infrastructure-as-Code (Terraform) for all new resources",
+      "Observability: CloudWatch metrics, X-Ray tracing, structured logging",
+      "CI/CD pipeline updates for Lambda deployment"
+    ],
+    "out_of_scope": [
+      "Database migration (staying on RDS PostgreSQL, not moving to DynamoDB)",
+      "API contract changes (endpoints must maintain backward compatibility)",
+      "Frontend changes (API URLs remain the same via custom domain)",
+      "Authentication/authorization redesign (existing JWT middleware ported as-is)",
+      "Decomposing into microservices — this is a lift-and-shift, endpoints map 1:1 to functions"
+    ],
+    "assumptions": [
+      "RDS Proxy is available in the target region",
+      "Lambda concurrency limits can be raised via quota increase if needed",
+      "Existing integration tests cover >70% of API surface",
+      "ALB can route weighted traffic to both EC2 and Lambda targets simultaneously"
+    ],
+    "open_questions": []
+  },
+  "approach": {
+    "overview": "Strangler-fig migration: extract endpoints domain by domain (8 domains total), deploy as Lambda functions behind API Gateway, shift traffic incrementally (10% → 50% → 100% per domain), validate, and decommission EC2.",
+    "rationale": "Strangler-fig allows incremental migration with rollback capability at each step. Domain-by-domain extraction keeps each migration unit reviewable and limits blast radius.",
+    "alternatives_considered": [
+      {
+        "approach": "Big-bang: deploy all endpoints to Lambda and cut over via DNS",
+        "rejection_reason": "High risk — no incremental validation, rollback requires DNS TTL wait"
+      },
+      {
+        "approach": "Container migration to ECS Fargate instead of Lambda",
+        "rejection_reason": "Fargate doesn't solve the idle-cost problem as effectively as Lambda for spiky traffic patterns; team has AWS Lambda expertise"
+      },
+      {
+        "approach": "Full decomposition into independently deployable microservices",
+        "rejection_reason": "Scope is too large for this migration; decompose after serverless infrastructure is proven"
+      }
+    ],
+    "steps": [
+      {
+        "step_id": "s1",
+        "title": "Provision Lambda infrastructure via Terraform",
+        "description": "Create Terraform modules for: Lambda function template, API Gateway HTTP API, RDS Proxy, CloudWatch log groups, X-Ray sampling rule, IAM roles with least-privilege policies.",
+        "rationale": "IaC is required for reproducible environments and rollback capability",
+        "inputs": "Current AWS account topology, existing Terraform state",
+        "outputs": "Terraform modules, staging environment",
+        "dependencies": [],
+        "parallelizable": false,
+        "estimated_complexity": "l",
+        "delegation": "agent",
+        "acceptance_criteria": "Terraform plan succeeds; staging Lambda can be deployed; RDS Proxy connects to RDS; X-Ray traces appear in console"
+      },
+      {
+        "step_id": "s2",
+        "title": "Create Lambda adapter for Express middleware",
+        "description": "Build a serverless-express or custom adapter that translates API Gateway events to Express request/response, preserving JWT middleware, error handling, and request logging.",
+        "rationale": "Without an adapter, every endpoint needs manual rewriting — adapter enables near-verbatim port",
+        "inputs": "Existing Express app structure",
+        "outputs": "Reusable Lambda handler adapter",
+        "dependencies": ["s1"],
+        "parallelizable": false,
+        "estimated_complexity": "m",
+        "delegation": "agent",
+        "acceptance_criteria": "Adapter correctly parses API Gateway proxy events; Express middleware chain executes; response is correctly formatted for API Gateway"
+      },
+      {
+        "step_id": "s3",
+        "title": "Migrate Domain 1-2 (auth, users) — pilot domains",
+        "description": "Extract auth (8 endpoints) and users (6 endpoints) domains. Deploy as Lambda functions. Configure API Gateway routes. Set up weighted routing: 10% Lambda / 90% EC2. Monitor for 48 hours, then shift to 50/50, then 100%.",
+        "rationale": "Auth and users are the most traffic-heavy domains — validates the pattern under real load and tests DB connection pooling",
+        "inputs": "Lambda adapter from s2, Terraform modules from s1",
+        "outputs": "Two Lambda-deployed domains with traffic shifting config",
+        "dependencies": ["s2"],
+        "parallelizable": false,
+        "estimated_complexity": "l",
+        "delegation": "agent",
+        "acceptance_criteria": "p95 latency within 200ms of EC2 baseline for migrated endpoints; error rate < 0.1%; traffic shifting works correctly at 10/50/100 weights; rollback (shift back to EC2) works in < 60 seconds"
+      },
+      {
+        "step_id": "s4",
+        "title": "Update CI/CD pipeline for Lambda deployments",
+        "description": "Extend the existing GitHub Actions workflow to: build Lambda zip artifacts, upload to S3, trigger Lambda update via AWS CLI, run smoke tests against the new function version.",
+        "rationale": "Pipeline must support Lambda-specific deployment steps alongside existing EC2 pipeline",
+        "inputs": "Existing CI/CD configuration",
+        "outputs": "Updated pipeline with Lambda deployment stage",
+        "dependencies": ["s3"],
+        "parallelizable": true,
+        "estimated_complexity": "m",
+        "delegation": "agent",
+        "acceptance_criteria": "Pipeline builds and deploys a Lambda function update end-to-end; smoke tests run against the updated function; pipeline fails fast on deployment errors"
+      },
+      {
+        "step_id": "s5",
+        "title": "Migrate Domains 3-5 (orders, payments, inventory)",
+        "description": "Apply the proven pattern from the pilot to orders (7 endpoints), payments (5 endpoints), and inventory (4 endpoints). These domains can be migrated in parallel since they share no stateful dependencies.",
+        "rationale": "Batching these three domains accelerates the migration timeline while staying within risk tolerance",
+        "inputs": "Validated pattern from s3, CI/CD from s4",
+        "outputs": "Three migrated domains",
+        "dependencies": ["s4"],
+        "parallelizable": true,
+        "estimated_complexity": "l",
+        "delegation": "agent",
+        "acceptance_criteria": "Each domain passes the same criteria as s3; no cross-domain regressions detected"
+      },
+      {
+        "step_id": "s6",
+        "title": "Migrate Domains 6-8 (notifications, search, admin)",
+        "description": "Extract remaining domains: notifications (5 endpoints), search (7 endpoints), admin (5 endpoints). Admin endpoints require human-gated deployment due to sensitive permissions.",
+        "rationale": "These domains have lower traffic but admin has elevated sensitivity",
+        "inputs": "Validated pattern from s5",
+        "outputs": "All 47 endpoints now on Lambda",
+        "dependencies": ["s5"],
+        "parallelizable": false,
+        "estimated_complexity": "l",
+        "delegation": "human",
+        "acceptance_criteria": "All endpoints migrated; full API surface returns correct responses; admin endpoints audited for permission correctness"
+      },
+      {
+        "step_id": "s7",
+        "title": "Configure weighted DNS routing for full cutover",
+        "description": "Update Route 53 / API Gateway custom domain to route 100% of API traffic through API Gateway. Keep EC2 instances warm for 72 hours as hot standby.",
+        "rationale": "Hot standby provides rapid rollback capability during the final cutover window",
+        "inputs": "All domains migrated (s6)",
+        "outputs": "DNS configuration pointing to API Gateway",
+        "dependencies": ["s6"],
+        "parallelizable": false,
+        "estimated_complexity": "m",
+        "delegation": "human",
+        "acceptance_criteria": "100% of production traffic served by Lambda; EC2 standby is idle; DNS TTL is low (< 60s) for rollback; traffic dashboard confirms zero client-visible errors"
+      },
+      {
+        "step_id": "s8",
+        "title": "Decommission EC2 infrastructure",
+        "description": "After 72 hours of stable Lambda operation, terminate EC2 instances, remove ALB, release EIPs, and update Terraform to remove EC2 resources. Archive old deployment artifacts.",
+        "rationale": "Decommissioning completes the migration and removes idle costs",
+        "inputs": "72 hours of stable production traffic on Lambda (s7)",
+        "outputs": "Cleaned-up AWS account, updated Terraform state",
+        "dependencies": ["s7"],
+        "parallelizable": false,
+        "estimated_complexity": "s",
+        "delegation": "human",
+        "acceptance_criteria": "EC2 instances terminated; ALB removed; monthly AWS bill projection reflects ~60% compute cost reduction; Terraform state is clean"
+      }
+    ]
+  },
+  "constraints": [
+    {
+      "constraint_id": "c1",
+      "type": "process",
+      "description": "Zero downtime — no request may fail due to migration activity",
+      "validation_method": "Synthetic monitoring on all endpoints during migration windows; alert on any 5xx spike",
+      "blocking": true
+    },
+    {
+      "constraint_id": "c2",
+      "type": "performance",
+      "description": "p95 latency for migrated endpoints must be within 200ms of the EC2 baseline",
+      "validation_method": "CloudWatch latency comparison between EC2 and Lambda for same endpoints",
+      "blocking": true
+    },
+    {
+      "constraint_id": "c3",
+      "type": "security",
+      "description": "IAM roles for Lambda must follow least-privilege — no wildcard permissions",
+      "validation_method": "Automated IAM policy linting in CI/CD pipeline",
+      "blocking": true
+    },
+    {
+      "constraint_id": "c4",
+      "type": "compliance",
+      "description": "PII logging must be explicitly disabled in Lambda log groups",
+      "validation_method": "Log sample review + automated PII pattern scanner on CloudWatch logs",
+      "blocking": true
+    },
+    {
+      "constraint_id": "c5",
+      "type": "technical",
+      "description": "RDS Proxy must be used for all database connections from Lambda",
+      "validation_method": "Database connection count stays stable during load test (no connection storms)",
+      "blocking": false
+    }
+  ],
+  "success_criteria": [
+    {
+      "criterion_id": "sc1",
+      "description": "100% of API traffic is served by Lambda through API Gateway",
+      "verification": "observable",
+      "weight": "primary"
+    },
+    {
+      "criterion_id": "sc2",
+      "description": "No client-visible downtime during migration (zero failed requests attributable to migration)",
+      "verification": "automated",
+      "weight": "primary"
+    },
+    {
+      "criterion_id": "sc3",
+      "description": "p95 latency is within 200ms of pre-migration baseline",
+      "verification": "automated",
+      "weight": "primary"
+    },
+    {
+      "criterion_id": "sc4",
+      "description": "Monthly compute cost is reduced by ≥ 50% (target: ~60%)",
+      "verification": "observable",
+      "weight": "secondary"
+    },
+    {
+      "criterion_id": "sc5",
+      "description": "EC2 infrastructure is fully decommissioned",
+      "verification": "observable",
+      "weight": "secondary"
+    }
+  ],
+  "risks": [
+    {
+      "risk_id": "r1",
+      "title": "Cold start latency on first requests after scaling to zero",
+      "probability": "high",
+      "impact": "medium",
+      "description": "Lambda functions scaling from 0 to 1 concurrent execution add 1-3s latency on the first request",
+      "mitigation": "Enable provisioned concurrency for high-traffic domains (auth, users, orders); set minimum concurrency to 5 during business hours",
+      "contingency": "If provisioned concurrency cost exceeds savings, evaluate scheduled warming or revert affected domains to EC2",
+      "owner": "shared"
+    },
+    {
+      "risk_id": "r2",
+      "title": "RDS Proxy connection limits under high concurrency",
+      "probability": "medium",
+      "impact": "high",
+      "description": "Lambda can spawn hundreds of concurrent connections; even with RDS Proxy, we could hit database connection limits",
+      "mitigation": "Set Lambda reserved concurrency to cap max parallel executions; monitor database connection count during load tests",
+      "contingency": "Raise RDS max_connections or add read replica if connection pressure persists",
+      "owner": "shared"
+    },
+    {
+      "risk_id": "r3",
+      "title": "Incompatible Express middleware that doesn't translate to Lambda",
+      "probability": "low",
+      "impact": "medium",
+      "description": "Some middleware (e.g., long-lived WebSockets, server-sent events) may not work in Lambda's request/response model",
+      "mitigation": "Audit all middleware during pilot domain migration (s3); identify and exclude incompatible endpoints",
+      "contingency": "Keep incompatible endpoints on EC2 or migrate to ECS Fargate as a hybrid approach",
+      "owner": "agent"
+    },
+    {
+      "risk_id": "r4",
+      "title": "Terraform state corruption during incremental migration",
+      "probability": "low",
+      "impact": "high",
+      "description": "Long-running incremental migration means Terraform state spans many changes; drift or corruption could occur",
+      "mitigation": "Use S3 backend with DynamoDB locking; run terraform plan in CI before every apply; audit state weekly",
+      "contingency": "Restore from Terraform state backup; manually reconcile drift",
+      "owner": "human"
+    }
+  ],
+  "dependencies": [
+    {
+      "dependency_id": "d1",
+      "description": "AWS quota increase for Lambda concurrent executions (request: 1000)",
+      "type": "access",
+      "available": true
+    },
+    {
+      "dependency_id": "d2",
+      "description": "RDS Proxy available in target region (us-east-1)",
+      "type": "service",
+      "available": true
+    },
+    {
+      "dependency_id": "d3",
+      "description": "Route 53 hosted zone for API domain",
+      "type": "access",
+      "available": true
+    },
+    {
+      "dependency_id": "d4",
+      "description": "Existing integration test suite covering API surface",
+      "type": "data",
+      "available": true
+    }
+  ],
+  "delegation": {
+    "default_mode": "hybrid",
+    "step_overrides": [
+      {
+        "step_id": "s6",
+        "mode": "human_approval",
+        "rationale": "Admin endpoints have elevated permissions — human must review IAM roles and access patterns"
+      },
+      {
+        "step_id": "s7",
+        "mode": "human_approval",
+        "rationale": "DNS cutover affects all production traffic — human authorization required"
+      },
+      {
+        "step_id": "s8",
+        "mode": "human_approval",
+        "rationale": "Decommissioning is irreversible — human sign-off required"
+      }
+    ],
+    "escalation_policy": {
+      "on_ambiguity": "pause",
+      "on_constraint_violation": "fail",
+      "on_unexpected_scope": "fail"
+    }
+  },
+  "revision_history": [
+    {
+      "revision": 1,
+      "change_type": "major",
+      "change_summary": "Initial migration plan: all-at-once Lambda deployment",
+      "trigger": "user_feedback",
+      "created_at": "2026-06-20T08:00:00Z"
+    },
+    {
+      "revision": 2,
+      "change_type": "major",
+      "change_summary": "Revised to strangler-fig approach after team feedback on blast radius",
+      "trigger": "user_feedback",
+      "changes": [
+        {
+          "type": "modification",
+          "section": "approach",
+          "field": "overview",
+          "summary": "Changed from big-bang to strangler-fig incremental migration"
+        },
+        {
+          "type": "addition",
+          "section": "steps",
+          "field": "s5",
+          "summary": "Added parallel domain migration batch (orders, payments, inventory)"
+        }
+      ],
+      "created_at": "2026-06-22T10:00:00Z"
+    },
+    {
+      "revision": 3,
+      "change_type": "minor",
+      "change_summary": "Added RDS Proxy dependency, provisioned concurrency mitigation for cold starts, PII logging constraint",
+      "trigger": "clarification",
+      "changes": [
+        {
+          "type": "addition",
+          "section": "constraints",
+          "field": "c4",
+          "summary": "Added PII logging compliance constraint"
+        },
+        {
+          "type": "addition",
+          "section": "constraints",
+          "field": "c5",
+          "summary": "Added RDS Proxy requirement constraint"
+        },
+        {
+          "type": "modification",
+          "section": "risks",
+          "field": "r1.mitigation",
+          "summary": "Added provisioned concurrency to cold start mitigation"
+        }
+      ],
+      "created_at": "2026-06-26T14:00:00Z"
+    }
+  ],
+  "metadata": {
+    "schema_version": "1.2.0",
+    "tool": "planclave",
+    "tool_version": "0.1.0",
+    "tags": ["migration", "serverless", "aws", "infrastructure"],
+    "language": "en"
+  }
+}

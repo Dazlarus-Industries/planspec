@@ -1,0 +1,103 @@
+{
+  "$comment": "Example 1: Minimal PlanSpec — a simple documentation update",
+  "identity": {
+    "plan_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "session_id": "sess-doc-001",
+    "revision": 1,
+    "parent_id": null,
+    "created_by": "human:daz",
+    "created_at": "2026-06-26T09:00:00Z"
+  },
+  "intent": {
+    "goal_statement": "Add installation instructions to the project README",
+    "motivation": "New users report they cannot figure out how to install the package",
+    "success_definition": "README contains a working installation section that new users can follow successfully",
+    "scope_context": "Single markdown file in a TypeScript npm package repository"
+  },
+  "scope": {
+    "in_scope": [
+      "README.md — Installation section only"
+    ],
+    "out_of_scope": [
+      "Rewriting the full README (separate task)",
+      "Adding new documentation pages",
+      "Changing the package name or publish config"
+    ],
+    "assumptions": [
+      "The package is published to npm under its current name",
+      "Node.js 18+ is the minimum supported runtime"
+    ]
+  },
+  "approach": {
+    "overview": "Insert a standard 'Installation' section into README.md after the project description, before 'Usage'.",
+    "rationale": "Standard npm packages conventionally place installation instructions near the top of the README for discoverability.",
+    "alternatives_considered": [
+      {
+        "approach": "Create a separate INSTALL.md file",
+        "rejection_reason": "Adds an extra click for users; npm convention favors inline README sections"
+      }
+    ],
+    "steps": [
+      {
+        "step_id": "s1",
+        "title": "Write installation section",
+        "description": "Add an '## Installation' heading with npm and yarn install commands, plus a note about Node.js version requirements.",
+        "rationale": "Covers the two most common package managers",
+        "inputs": "Current README.md content",
+        "outputs": "Updated README.md with installation section",
+        "dependencies": [],
+        "parallelizable": false,
+        "estimated_complexity": "xs",
+        "delegation": "agent",
+        "acceptance_criteria": "Installation section is present, commands are syntactically correct, and running them in a clean environment installs the package"
+      }
+    ]
+  },
+  "constraints": [
+    {
+      "constraint_id": "c1",
+      "type": "process",
+      "description": "No breaking changes to existing README content",
+      "validation_method": "Diff review shows only additions, no modifications to existing sections",
+      "blocking": true
+    }
+  ],
+  "success_criteria": [
+    {
+      "criterion_id": "sc1",
+      "description": "A new user following the README instructions can install the package successfully",
+      "verification": "manual",
+      "weight": "primary"
+    },
+    {
+      "criterion_id": "sc2",
+      "description": "Installation section is within the first 50 lines of README",
+      "verification": "observable",
+      "weight": "secondary"
+    }
+  ],
+  "risks": [],
+  "dependencies": [],
+  "delegation": {
+    "default_mode": "agent_autonomous",
+    "escalation_policy": {
+      "on_ambiguity": "pause",
+      "on_constraint_violation": "pause",
+      "on_unexpected_scope": "pause"
+    }
+  },
+  "revision_history": [
+    {
+      "revision": 1,
+      "change_type": "major",
+      "change_summary": "Initial plan created",
+      "trigger": "user_feedback",
+      "created_at": "2026-06-26T09:00:00Z"
+    }
+  ],
+  "metadata": {
+    "schema_version": "1.2.0",
+    "tool": "manual",
+    "tags": ["documentation", "readme"]
+  }
+}
