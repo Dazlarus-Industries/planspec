@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PlanSpec — Executive Brief</title>
+<style>
+  @page {
+    size: letter;
+    margin: 0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Helvetica, sans-serif;
+    font-size: 11pt;
+    line-height: 1.65;
+    color: #1e293b;
+    background: #ffffff;
+  }
+
+  /* ── Cover Header ── */
+  .cover {
+    background: linear-gradient(135deg, #0a0e14 0%, #0d1117 40%, #161b22 100%);
+    color: #e6edf3;
+    padding: 50px 50px 40px;
+    page-break-after: always;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+  }
+
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #58a6ff, #bc8cff, #58a6ff);
+  }
+
+  .cover-brand {
+    font-size: 13pt;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #58a6ff;
+    margin-bottom: 24px;
+  }
+
+  .cover h1 {
+    font-size: 36pt;
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: 16px;
+    color: #ffffff;
+  }
+
+  .cover-subtitle {
+    font-size: 16pt;
+    color: #8b949e;
+    font-weight: 400;
+    line-height: 1.5;
+    max-width: 500px;
+    margin-bottom: 40px;
+  }
+
+  .cover-meta {
+    display: flex;
+    gap: 32px;
+    margin-top: auto;
+    padding-top: 40px;
+    border-top: 1px solid #30363d;
+  }
+
+  .cover-meta-item {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .cover-meta-label {
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #6e7681;
+    margin-bottom: 4px;
+  }
+
+  .cover-meta-value {
+    font-size: 12pt;
+    font-weight: 600;
+    color: #e6edf3;
+  }
+
+  /* ── Content Pages ── */
+  .content {
+    padding: 45px 55px;
+  }
+
+  .content h2 {
+    font-size: 18pt;
+    font-weight: 700;
+    color: #0d1117;
+    margin-top: 28px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #58a6ff;
+  }
+
+  .content h2:first-child {
+    margin-top: 0;
+  }
+
+  .content h3 {
+    font-size: 13pt;
+    font-weight: 600;
+    color: #1e293b;
+    margin-top: 20px;
+    margin-bottom: 8px;
+  }
+
+  .content p {
+    margin-bottom: 12px;
+    color: #334155;
+  }
+
+  .content ul {
+    margin: 8px 0 16px 20px;
+  }
+
+  .content li {
+    margin-bottom: 6px;
+    color: #334155;
+  }
+
+  .content strong {
+    color: #0d1117;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 10.5pt;
+  }
+
+  th {
+    background: #f1f5f9;
+    color: #0d1117;
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 2px solid #cbd5e1;
+  }
+
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #334155;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* ── Callout ── */
+  .callout {
+    background: #f0f7ff;
+    border-left: 4px solid #58a6ff;
+    padding: 16px 20px;
+    margin: 16px 0;
+    border-radius: 0 8px 8px 0;
+  }
+
+  .callout-title {
+    font-weight: 700;
+    color: #0d1117;
+    margin-bottom: 6px;
+  }
+
+  .callout p {
+    margin-bottom: 0;
+    color: #334155;
+  }
+
+  /* ── Code ── */
+  code {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10pt;
+    color: #0d1117;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 9pt;
+    color: #94a3b8;
+    text-align: center;
+  }
+
+  .footer a {
+    color: #58a6ff;
+    text-decoration: none;
+  }
+
+  /* ── Page Breaks ── */
+  .page-break {
+    page-break-before: always;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ Cover Page ═══ -->
+<div class="cover">
+  <div class="cover-brand">◼ Dazlarus Industries</div>
+  <h1>PlanSpec</h1>
+  <div class="cover-subtitle">An open standard for structured AI execution plans.</div>
+  <div class="cover-meta">
+    <div class="cover-meta-item">
+      <span class="cover-meta-label">Version</span>
+      <span class="cover-meta-value">1.2.0</span>
+    </div>
+    <div class="cover-meta-item">
+      <span class="cover-meta-label">License</span>
+      <span class="cover-meta-value">MIT</span>
+    </div>
+    <div class="cover-meta-item">
+      <span class="cover-meta-label">Date</span>
+      <span class="cover-meta-value">June 2026</span>
+    </div>
+    <div class="cover-meta-item">
+      <span class="cover-meta-label">Document</span>
+      <span class="cover-meta-value">Executive Brief</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Content ═══ -->
+<div class="content">
+
+<h2>The Problem</h2>
+<p>When an AI agent plans work — writing code, modifying infrastructure, executing a multi-step task — that plan exists as a chat message. Unstructured. Unverifiable. Impossible to audit after the fact.</p>
+<p>As AI agents take on higher-stakes work in enterprise environments, this becomes a critical gap:</p>
+<ul>
+  <li><strong>No accountability</strong> — there's no record of what the AI intended to do, what constraints it acknowledged, or what risks it identified</li>
+  <li><strong>No validation</strong> — there's no way to check if the plan is complete, consistent, or safe before execution begins</li>
+  <li><strong>No oversight</strong> — there's no boundary between what the AI is authorized to do autonomously and what requires human approval</li>
+  <li><strong>No audit trail</strong> — when something goes wrong, there's no artifact to trace the decision chain</li>
+</ul>
+
+<h2>The Solution</h2>
+<p><strong>PlanSpec</strong> defines a standard format for execution plans that are:</p>
+<ul>
+  <li><strong>Human-readable</strong> — a senior engineer or manager can review one without AI assistance</li>
+  <li><strong>Machine-executable</strong> — structured enough for an agent to follow step by step</li>
+  <li><strong>Validatable</strong> — constraints, success criteria, and scope boundaries are explicit and checkable</li>
+  <li><strong>Auditable</strong> — every decision has recorded rationale, every revision has history</li>
+</ul>
+
+<h2>What's in a PlanSpec</h2>
+<p>A PlanSpec document captures six critical dimensions of any execution plan:</p>
+<table>
+  <thead>
+    <tr><th>Dimension</th><th>What It Answers</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Intent</strong></td><td>What are we doing and why? What does success look like?</td></tr>
+    <tr><td><strong>Scope</strong></td><td>What is explicitly in and out of bounds? What assumptions are we making?</td></tr>
+    <tr><td><strong>Approach</strong></td><td>What are the steps, their dependencies, and their complexity?</td></tr>
+    <tr><td><strong>Constraints</strong></td><td>What conditions must hold throughout execution? (Security, compliance, performance)</td></tr>
+    <tr><td><strong>Delegation</strong></td><td>What can the AI do autonomously vs. what needs human sign-off?</td></tr>
+    <tr><td><strong>Risks</strong></td><td>What could go wrong, how likely is it, and what's our mitigation?</td></tr>
+  </tbody>
+</table>
+<p>Every PlanSpec is versioned, revision-tracked, and carries a full decision history.</p>
+
+<div class="page-break"></div>
+
+<h2>Why an Open Standard?</h2>
+<p>Today, every AI planning tool invents its own format. Plans can't be shared between tools, reviewed by standardized processes, or audited against a common baseline.</p>
+<p>An open standard means:</p>
+<ul>
+  <li><strong>Tool interoperability</strong> — any planning tool can produce PlanSpec documents; any execution tool can consume them</li>
+  <li><strong>Independent validation</strong> — a PlanSpec can be reviewed by a human, a tool, or a committee using consistent criteria</li>
+  <li><strong>Organizational governance</strong> — enterprises can adopt PlanSpec as a policy: "no AI agent executes without an approved PlanSpec"</li>
+  <li><strong>Ecosystem growth</strong> — validators, dashboards, audit tools, and comparison engines all build on the same format</li>
+</ul>
+
+<h2>Real-World Example</h2>
+<div class="callout">
+  <div class="callout-title">Robotics in Industrial Settings</div>
+  <p>A robotics company deploying autonomous systems in a refinery needs to ensure every AI-planned operation is reviewed before execution. A PlanSpec document specifies the scope (valves, sensors, control systems), safety constraints (tolerances, regulatory compliance, rollback procedures), delegation boundaries (autonomous vs. human-approved steps), measurable success criteria, and risk mitigations. The plan is reviewed by a safety engineer, approved, and handed to the execution system. If anything goes wrong, the PlanSpec is the artifact investigators use to trace decisions.</p>
+</div>
+
+<h2>Who Should Care?</h2>
+<table>
+  <thead>
+    <tr><th>Audience</th><th>Why</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Engineering leaders</strong></td><td>Standardize how AI agents plan and execute work across teams</td></tr>
+    <tr><td><strong>Security &amp; compliance</strong></td><td>Gain auditability and oversight over AI-driven operations</td></tr>
+    <tr><td><strong>AI tool builders</strong></td><td>Adopt a proven format instead of inventing your own</td></tr>
+    <tr><td><strong>Enterprise architects</strong></td><td>Define governance policies for AI agent deployment</td></tr>
+    <tr><td><strong>Regulators &amp; auditors</strong></td><td>Establish a baseline artifact for AI accountability</td></tr>
+  </tbody>
+</table>
+
+<h2>Current Status</h2>
+<ul>
+  <li><strong>Version 1.2.0</strong> published and available under MIT license</li>
+  <li>Full specification, JSON Schema, and examples at <code>github.com/Dazlarus-Industries/planspec</code></li>
+  <li>Reference implementation (Planclave engine) in development by Dazlarus Industries</li>
+  <li>Seeking early adopters and feedback from organizations deploying AI agents in production</li>
+</ul>
+
+<div class="footer">
+  <p>PlanSpec is developed by <strong>Dazlarus Industries</strong> and released under the MIT License.<br>
+  <a href="https://github.com/Dazlarus-Industries/planspec">github.com/Dazlarus-Industries/planspec</a> · <a href="https://dazlarus.dev">dazlarus.dev</a> · darien@dazlarus.dev</p>
+</div>
+
+</div>
+
+</body>
+</html>
